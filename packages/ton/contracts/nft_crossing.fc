@@ -1,0 +1,103 @@
+#include "imports/stdlib.fc";
+int min_gas_swap() asm "50000000 PUSHINT"; ;; 0.05 TON
+int min_gas_msg() asm "1000000 PUSHINT"; ;; 0.001 TON
+int op::transfer() asm "0x5fcc3d14 PUSHINT";
+int op::ownership_assigned() asm "0x05138d91 PUSHINT";
+
+() send_coins(int mode, slice to, int amount, slice mess) impure inline {
+    var msg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_slice(to)
+        .store_coins(amount)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_uint(0, 32)
+        .store_slice(mess)
+        .end_cell();
+    send_raw_message(msg, mode);
+}
+
+() send_nft(int mode, int amount, slice to, int nft_addr) impure inline {
+    builder body = begin_cell()
+        .store_uint(op::transfer(), 32) ;; op
+        .store_uint(cur_lt(), 64)       ;; query id
+        .store_slice(to)                ;; new owner
+        .store_slice(to)                ;; response destination
+        .store_int(0, 1)                ;; custom payload
+        .store_coins(1)                 ;; fwd ton amount
+        .store_int(0, 1);               ;; fwd custom payload
+    builder msg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_uint(2, 2) ;; addr std
+        .store_uint(0, 1) ;; anycast
+        .store_uint(0, 8) ;; wc
+        .store_uint(nft_addr, 256)
+        .store_coins(amount)
+        .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_ref(body.end_cell());
+    send_raw_message(msg.end_cell(), mode);
+}
+
+(slice, int, cell) load_data() {
+    slice ds = get_data().begin_parse();
+    slice owner_address = ds~load_msg_addr();
+    if (ds.slice_bits() > 0) {
+        return (owner_address, ds~load_uint(16), ds~load_dict());
+    } else {  
+        return (owner_address, 0, new_dict()); ;; nft not initialized yet
+    }
+}
+
+() save_data(slice owner_address, total_nft, cell nft_dict) impure inline {
+    set_data(begin_cell()
+	.store_slice(owner_address)
+    .store_uint(total_nft, 16)
+    .store_dict(nft_dict)
+	.end_cell());
+}
+
+() recv_internal (int balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    var cs = in_msg_full.begin_parse();
+    var flags = cs~load_uint(4);
+
+    slice nft_address = cs~load_msg_addr();
+
+    if (in_msg_body.slice_empty?()) { ;; ignore empty messages
+        return ();
+    }
+    
+    int op = in_msg_body~load_int(32);
+
+    if (op == op::ownership_assigned()) {    
+        (slice owner_address, int nft_total, cell nft_dict) = load_data();
+        nft_total += 1;
+        nft_dict~udict_set(256, nft_total, nft_address);
+
+        in_msg_body~skip_bits(64); ;;int query_id = in_msg_body~load_uint(64);
+        slice prev_owner = in_msg_body~load_msg_addr();
+
+        if (msg_value < min_gas_swap()) { 
+            send_coins(64, prev_owner, 1, "Thanks!");
+        } else {
+            int nft_id = 1;
+            if (nft_total > 1) {
+                nft_id = rand(nft_total) + 1;
+            }
+            (slice nft, _) = nft_dict.udict_get?(256, nft_id);
+
+            (_, int nft_address) = parse_std_addr(nft);
+            send_nft(64, msg_value - min_gas_msg(), prev_owner, nft_address);
+
+            if (nft_id < nft_total) {
+                (slice last_nft, _) = nft_dict.udict_get?(256, nft_total);
+                nft_dict~udict_set(256, nft_id, last_nft);
+            }
+            nft_dict~udict_delete?(256, nft_total);
+            nft_total -= 1;
+
+            ;;send_coins(0, prev_owner, msg_value - min_gas_swap(), "Cross!");
+        }
+
+        save_data(owner_address, nft_total, nft_dict);
+        commit();
+    }
+}
