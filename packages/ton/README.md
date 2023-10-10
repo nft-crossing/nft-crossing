@@ -1,26 +1,24 @@
-# nft-crossing
+[🇷🇺 Русская версия](#русская-версия) [🏴󠁧󠁢󠁥󠁮󠁧󠁿 English version (ChatGPT)](#english-version)
 
-## Project structure
+# NFT Crossing - Smart Contract
 
--   `contracts` - source code of all the smart contracts of the project and their dependencies.
--   `wrappers` - wrapper classes (implementing `Contract` from ton-core) for the contracts, including any [de]serialization primitives and compilation functions.
--   `tests` - tests for the contracts.
--   `scripts` - scripts used by the project, mainly the deployment scripts.
+## English version
+For a better understanding, please refer to this tutorial: https://ton-community.github.io/tutorials/02-contract/
 
-## How to use
+### Installation/Deployment
+In the console, run the following command:
+```
+npm start
+```
 
-### Build
+and follow the instructions. Ultimately, you will receive the address of your smart contract, which you will need to enter in the settings of the client application.
 
-`npx blueprint build` or `yarn blueprint build`
+## Русская версия
+Для лучшего понимания ознакомьтесь с этим туториалом https://ton-community.github.io/tutorials/02-contract/
 
-### Test
-
-`npx blueprint test` or `yarn blueprint test`
-
-### Deploy or run another script
-
-`npx blueprint run` or `yarn blueprint run`
-
-### Add a new contract
-
-`npx blueprint create ContractName` or `yarn blueprint create ContractName`
+### Установка/деплой
+В консоли запустите:
+```
+npm start
+```
+и следуйте инструкциям. В итоге вы получите адрес вашего смарт-контракта, который будет необходимо внести в настройки клиентского приложения.
